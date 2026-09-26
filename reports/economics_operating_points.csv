@@ -1,0 +1,4 @@
+model,best_quantile,flagged_early,median_lead_h,false_alerts_per_month,break_even_FA_per_month,net_value_usd
+±3σ control limits,0.97,2,50.5,2.13,13.6,27000
+Isolation Forest,0.97,3,46.8,12.33,22.5,24000
+LSTM autoencoder,0.99,2,40.9,1.91,13.6,27500

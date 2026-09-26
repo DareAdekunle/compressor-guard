@@ -1,0 +1,20 @@
+# config/costs.yaml
+# Illustrative maintenance economics assumptions
+# All monetary figures are in USD ($) and time intervals are in hours
+
+costs:
+  unplanned_failure: 25000.0    # Downtime, lost production, catastrophic repair
+  planned_maintenance: 4000.0   # Scheduled maintenance window, standard parts
+  expedite_penalty: 5000.0      # Premium freight for emergency parts / overtime crew
+  false_inspection: 500.0       # Technician time to inspect healthy asset
+
+lead_times:
+  parts_delivery_hours: 48.0    # 2 days standard shipping for replacement valves/seals
+  scheduling_hours: 12.0        # Time required to organize maintenance crew window
+
+sensitivity:
+  parts_scenarios_hours:
+    - 24.0   # 1 day rush
+    - 48.0   # 2 days normal
+    - 168.0  # 1 week standard
+    - 336.0  # 2 weeks backordered

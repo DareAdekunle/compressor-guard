@@ -1,0 +1,21 @@
+# Raw and processed data are never committed (see DATA.md)
+data/*
+
+# Trained artefacts and experiment tracking (regenerate with the pipeline)
+models/
+mlflow.db
+mlruns/
+mlartifacts/
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store

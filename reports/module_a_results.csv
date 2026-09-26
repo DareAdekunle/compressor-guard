@@ -1,0 +1,4 @@
+model,flagged_early,detected_by_end,median_lead_h,false_alerts,false_alerts_per_month,net_value_usd
+control_limits,2 / 4,4 / 4,52.3,29,6.17,17500
+isolation_forest,1 / 4,4 / 4,35.2,8,1.7,12000
+lstm_autoencoder,1 / 4,4 / 4,46.6,6,1.28,13000

@@ -1,0 +1,152 @@
+# config/params.yaml
+# Feature, model, alert and back-test settings for both modules.
+# All paths are relative to the project root.
+
+metropt:
+  raw_csv_path: "data/raw/metropt3/MetroPT3(AirCompressor).csv"
+  clean_parquet_path: "data/processed/metropt_clean.parquet"
+  processed_parquet_path: "data/processed/metropt_features.parquet"
+  scores_parquet_path: "data/processed/metropt_scores.parquet"
+  baseline_path: "models/feature_baseline.json"
+  model_dir: "models"
+
+  sampling_rate_seconds: 10
+  resample_rule: "1min"
+
+  # Healthy training window. It ends 8 days before the first documented failure (F1, 18 Apr).
+  train_split:
+    start: "2020-02-01 00:00:00"
+    end: "2020-04-10 23:59:00"
+
+  # Episodes inside the training window with a leak-like signature: the compressor loaded
+  # continuously for more than 10 h, with reservoir pressure collapsing below 1 bar and oil
+  # above 77 °C. They are not in the failure report, but they are not "healthy" either, so
+  # they are left out of model fitting. This choice uses no failure labels (see notebook 02).
+  # They remain in the data and are scored like everything else.
+  train_exclude:
+    - {start: "2020-03-12 00:00:00", end: "2020-03-12 14:00:00", reason: "11.5 h continuous load, reservoir < 1 bar"}
+    - {start: "2020-03-28 23:00:00", end: "2020-03-29 21:00:00", reason: "19.7 h continuous load, oil 82 °C, reservoir < 1 bar"}
+
+  # Rolling windows (minutes). Fixed in features.py: 15 / 60 / 360 / 1440.
+  windows:
+    short_minutes: 15
+    medium_minutes: 60
+    long_minutes: 360
+    day_minutes: 1440
+
+  # Operating shifts: an ASSUMED 3 x 8 h schedule (MetroPT-3 has no shift data).
+  shifts:
+    shift_1: {start_hour: 6, end_hour: 14, label: "Shift 1 (06-14)"}
+    shift_2: {start_hour: 14, end_hour: 22, label: "Shift 2 (14-22)"}
+    shift_3: {start_hour: 22, end_hour: 6, label: "Shift 3 (22-06)"}
+
+  analog_signals: [TP2, TP3, H1, DV_pressure, Reservoirs, Oil_temperature, Motor_current]
+  digital_signals: [COMP, DV_eletric, Towers, MPG, LPS, Pressure_switch, Oil_level, Caudal_impulses]
+
+  models:
+    control_limits:
+      sigma: 3.0
+      features:
+        - duty_cycle_60m
+        - max_load_run_min_60m
+        - load_starts_per_hour
+        - idle_decay_rate_60m
+        - oil_temp_excess_24h
+
+    isolation_forest:
+      contamination: 0.01
+      n_estimators: 200
+      max_samples: 0.8
+      random_state: 42
+      features:
+        - duty_cycle_15m
+        - duty_cycle_60m
+        - duty_cycle_6h
+        - load_starts_per_hour
+        - max_load_run_min_60m
+        - motor_current_loaded_60m
+        - motor_current_std_15m
+        - oil_temp_excess_24h
+        - oil_temp_std_60m
+        - delta_p_loaded_60m
+        - reservoir_min_60m
+        - idle_decay_rate_60m
+        - lps_frac_60m
+
+    lstm_autoencoder:
+      sequence_length: 30      # 30-minute window
+      hidden_dim: 32
+      latent_dim: 16
+      num_layers: 1
+      batch_size: 256
+      epochs: 10
+      learning_rate: 0.002
+      contamination: 0.01
+      random_state: 42
+      features:
+        - TP2
+        - TP3
+        - H1
+        - DV_pressure
+        - Reservoirs
+        - Motor_current
+        - loaded_frac
+        - oil_temp_excess_24h
+
+  alert_logic:
+    smoothing_window_minutes: 30   # trailing rolling median
+    persistence_minutes: 60        # smoothed score must stay above threshold this long
+    threshold_quantile: 0.995      # IF / LSTM threshold = this quantile of smoothed healthy scores
+
+  backtest:
+    anticipation_hours: 72         # alerts up to 3 days before onset count as early warnings
+    post_failure_grace_hours: 24   # used when no maintenance time is logged (F1)
+
+mlflow:
+  tracking_uri: "sqlite:///mlflow.db"   # MLflow 3 rejects the old ./mlruns file store
+  experiment: "compressor-guard-module-a"
+
+# Module B: IMS bearings
+ims:
+  raw_dir: "data/raw/ims"
+  processed_dir: "data/processed"
+  shaft_speed_rpm: 2000.0
+  sampling_frequency_hz: 20480      # 20,480 points per 1 s snapshot (the readme says "20 kHz")
+  points_per_file: 20480
+  # Rexnord ZA-2115: 16 rollers per row, pitch diameter 2.815 in, roller diameter
+  # 0.331 in, contact angle 15.17 deg. Shaft 2000 rpm = 33.33 Hz. Values below are
+  # computed from that geometry (notebook 04 recomputes them).
+  bearing_geometry:
+    n_rollers: 16
+    pitch_diameter_in: 2.815
+    roller_diameter_in: 0.331
+    contact_angle_deg: 15.17
+  fault_frequencies_hz:
+    bpfo: 236.4
+    bpfi: 296.9
+    bsf: 139.9
+    ftf: 14.8
+  band_tolerance: 0.05             # +/- 5 % around each defect frequency (slip, speed error)
+  n_harmonics: 3
+  envelope_band_hz: [2000, 8000]   # band-pass before the Hilbert envelope
+
+  health:
+    reference: cross_bearing       # divide by the median of the other bearings (common-mode rejection)
+    baseline_hours: 24             # first 24 h of each test = the bearing's healthy reference
+    skip_hours: 1                  # ignore the run-in at the very start
+    smoothing_snapshots: 12        # trailing median, about 2 h
+    hi_features: [rms, kurtosis, env_bpfo, env_bpfi, env_bsf]
+    # Alarm: smoothed HI > onset_k (in healthy-sigma units) for onset_persistence snapshots.
+    # Chosen from the sweep in notebook 05: k = 15-25 is a stable plateau (4/4 detected,
+    # 1 false alarm). Below 15, test 3 B4 flaps across the threshold repeatedly.
+    # NB: tuned on the same 4 failed bearings it is evaluated on (there are no others).
+    onset_k: 15.0
+    onset_persistence: 12
+    # Like Module A's 72 h anticipation window: an alarm counts as a detection only if raised
+    # within this many hours of failure. Earlier alarms count as false (inspected, nothing found).
+    max_lead_hours: 168
+
+  rul:
+    eval_fractions: [0.5, 0.75, 0.9]   # evaluate at 50/75/90 % of the onset -> failure interval
+    min_points: 12                     # need at least this many post-onset snapshots to fit
+    max_rul_hours: 2000

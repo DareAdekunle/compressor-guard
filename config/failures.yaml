@@ -1,0 +1,47 @@
+# config/failures.yaml
+# MetroPT-3 documented air-leak failures.
+#
+# Source: the company failure report published on the UCI dataset page
+# (https://archive.ics.uci.edu/dataset/791/metropt+3+dataset), checked 2026-09-26:
+#
+#   Nr | Start            | End              | Failure  | Severity    | Report
+#   1  | 4/18/2020 0:00   | 4/18/2020 23:59  | Air leak | High stress |
+#   2  | 5/29/2020 23:30  | 5/30/2020 6:00   | Air Leak | High stress | Maintenance on 30Apr at 12:00
+#   3  | 6/5/2020 10:00   | 6/7/2020 14:30   | Air Leak | High stress | Maintenance on 8Jun at 16:00
+#   4  | 7/15/2020 14:30  | 7/15/2020 19:00  | Air Leak | High stress | Maintenance on 16Jul at 00:00
+#
+# The source table has two typos: row 2 is numbered "#1", and its maintenance date says
+# "30Apr", which comes before the failure itself. We read it as 30 May 12:00.
+# `maintenance` marks the end of the incident: alerts between `end` and `maintenance`
+# belong to the same failure and are not counted as false alarms in the back-test.
+# F1 has no maintenance entry, so the back-test applies a default grace period
+# (backtest.post_failure_grace_hours in params.yaml).
+
+failures:
+  - id: F1
+    start: "2020-04-18 00:00:00"
+    end: "2020-04-18 23:59:00"
+    maintenance: null
+    type: air_leak
+    description: "Air leak, high stress. No maintenance time reported."
+
+  - id: F2
+    start: "2020-05-29 23:30:00"
+    end: "2020-05-30 06:00:00"
+    maintenance: "2020-05-30 12:00:00"
+    type: air_leak
+    description: "Air leak, high stress. Maintenance 30 May 12:00 (source says '30Apr', a typo)."
+
+  - id: F3
+    start: "2020-06-05 10:00:00"
+    end: "2020-06-07 14:30:00"
+    maintenance: "2020-06-08 16:00:00"
+    type: air_leak
+    description: "Air leak, high stress, lasting over two days. Maintenance 8 Jun 16:00."
+
+  - id: F4
+    start: "2020-07-15 14:30:00"
+    end: "2020-07-15 19:00:00"
+    maintenance: "2020-07-16 00:00:00"
+    type: air_leak
+    description: "Air leak, high stress. Maintenance 16 Jul 00:00."
